@@ -19,3 +19,11 @@ func (m *Message) Encode() (string, error) {
 	}
 	return strings.TrimSuffix(string(data), "\n"), nil
 }
+
+func ParseMessage(data string) (*Message, error) {
+	var m Message
+	if err := json.Unmarshal([]byte(data), &m); err != nil {
+		return nil, err
+	}
+	return &m, nil
+}

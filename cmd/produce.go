@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/time/rate"
@@ -37,18 +39,27 @@ func NewProducer(ctx context.Context, limiter *rate.Limiter, queueURL string) *P
 	}
 }
 
-func (p *Producer) Produce(ctx context.Context, message internal.Message) error {
+func (p *Producer) Produce(ctx context.Context, message []*internal.Message) error {
 	if err := p.limiter.Wait(ctx); err != nil {
 		return err
 	}
 
-	body, err := message.Encode()
-	if err != nil {
-		return err
+	entries := make([]types.SendMessageBatchRequestEntry, 0, len(message))
+	for i, m := range message {
+		body, err := m.Encode()
+		if err != nil {
+			return err
+		}
+		id := strconv.Itoa(i)
+		entries = append(entries, types.SendMessageBatchRequestEntry{
+			Id:          &id,
+			MessageBody: &body,
+		})
 	}
-	if _, err := p.client.SendMessage(ctx, &sqs.SendMessageInput{
-		QueueUrl:    &p.queueURL,
-		MessageBody: &body,
+
+	if _, err := p.client.SendMessageBatch(ctx, &sqs.SendMessageBatchInput{
+		QueueUrl: &p.queueURL,
+		Entries:  entries,
 	}); err != nil {
 		return err
 	}
@@ -81,6 +92,7 @@ func SourceMessages(ctx context.Context, n int) chan internal.Message {
 }
 
 func produce(ctx context.Context, producer *Producer, messageCh chan internal.Message) error {
+	buf := make([]*internal.Message, 0, 10)
 	for message := range messageCh {
 		select {
 		case <-ctx.Done():
@@ -89,9 +101,15 @@ func produce(ctx context.Context, producer *Producer, messageCh chan internal.Me
 		}
 
 		slog.InfoContext(ctx, "produce", slog.Any("message", message))
-		if err := producer.Produce(ctx, message); err != nil {
+		buf = append(buf, &message)
+		if len(buf) < 10 {
+			continue
+		}
+
+		if err := producer.Produce(ctx, buf); err != nil {
 			return err
 		}
+		buf = buf[:0]
 	}
 	return nil
 }
@@ -115,16 +133,21 @@ func CreateSQSClient(ctx context.Context) (*sqs.Client, error) {
 // produceCmd represents the producer command
 var produceCmd = &cobra.Command{
 	Use:  "produce",
-	Args: cobra.ExactArgs(1),
+	Args: cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
 		queueURL := args[0]
+		numMessage, err := strconv.Atoi(args[1])
+		if err != nil {
+			slog.ErrorContext(cmd.Context(), "invalid number of messages", slog.Any("error", err))
+			return
+		}
 
 		ctx := cmd.Context()
 		eg := new(errgroup.Group)
 		limiter := rate.NewLimiter(rate.Limit(throughput), 1)
 		producer := NewProducer(ctx, limiter, queueURL)
 
-		messageCh := SourceMessages(ctx, 100)
+		messageCh := SourceMessages(ctx, numMessage)
 		for i := 0; i < concurrency; i++ {
 			eg.Go(func() error {
 				return produce(ctx, producer, messageCh)

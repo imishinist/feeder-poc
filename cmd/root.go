@@ -2,9 +2,16 @@ package cmd
 
 import (
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 )
+
+func Sleep(dur time.Duration) {
+	if dur.Milliseconds() > 0 {
+		time.Sleep(dur)
+	}
+}
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
