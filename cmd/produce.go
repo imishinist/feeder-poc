@@ -27,7 +27,7 @@ type Producer struct {
 }
 
 func NewProducer(ctx context.Context, limiter *rate.Limiter, queueURL string) *Producer {
-	client, err := CreateSQSClient(ctx)
+	client, err := NewSQSClient(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "create sqs client error", slog.Any("error", err))
 		panic(err)
@@ -76,14 +76,15 @@ func SourceMessages(ctx context.Context, n int) chan internal.Message {
 	go func() {
 		defer close(ch)
 
-		for i := 0; i < n; i++ {
+		for i := 1; i <= n; i++ {
 			select {
 			case <-ctx.Done():
 				return
 			case ch <- internal.Message{
-				MemberID:  fmt.Sprintf("%d", i),
-				Force:     false,
-				EnqueueAt: time.Now().Format(time.RFC3339Nano),
+				Collection: "BRent",
+				MemberID:   fmt.Sprintf("%d", i),
+				Force:      false,
+				EnqueueAt:  time.Now(),
 			}:
 			}
 		}
@@ -111,10 +112,15 @@ func produce(ctx context.Context, producer *Producer, messageCh chan internal.Me
 		}
 		buf = buf[:0]
 	}
+	if len(buf) > 0 {
+		if err := producer.Produce(ctx, buf); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
-func CreateSQSClient(ctx context.Context) (*sqs.Client, error) {
+func NewSQSClient(ctx context.Context) (*sqs.Client, error) {
 	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion("ap-northeast-1"))
 	if err != nil {
 		return nil, err

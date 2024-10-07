@@ -23,7 +23,7 @@ type Consumer struct {
 }
 
 func NewConsumer(ctx context.Context, queueURL string) *Consumer {
-	client, err := CreateSQSClient(ctx)
+	client, err := NewSQSClient(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "create sqs client error", slog.Any("error", err))
 		panic(err)
@@ -56,7 +56,7 @@ func (c *Consumer) Consume(ctx context.Context) ([]*internal.QueueMessage[intern
 		}
 		messages = append(messages, &internal.QueueMessage[internal.Message]{
 			ReceiptHandle: *m.ReceiptHandle,
-			Message:       *message,
+			Message:       message,
 		})
 	}
 

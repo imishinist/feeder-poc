@@ -3,13 +3,15 @@ package internal
 import (
 	"encoding/json"
 	"strings"
+	"time"
 )
 
 type Message struct {
-	MemberID string `json:"member_id"`
-	Force    bool   `json:"force"`
+	Collection string `json:"collection"`
+	MemberID   string `json:"member_id"`
+	Force      bool   `json:"force"`
 
-	EnqueueAt string `json:"enqueue_at"`
+	EnqueueAt time.Time `json:"enqueue_at"`
 }
 
 func (m *Message) Encode() (string, error) {
