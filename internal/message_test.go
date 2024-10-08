@@ -1,6 +1,9 @@
 package internal
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestMessage_Encode(t *testing.T) {
 	tests := []struct {
@@ -14,7 +17,7 @@ func TestMessage_Encode(t *testing.T) {
 			message: Message{
 				MemberID:  "member_id",
 				Force:     false,
-				EnqueueAt: "2021-01-01T00:00:00Z",
+				EnqueueAt: time.Date(2021, time.January, 1, 0, 0, 0, 0, time.UTC),
 			},
 			want:    "{\"member_id\":\"member_id\",\"force\":false,\"enqueue_at\":\"2021-01-01T00:00:00Z\"}",
 			wantErr: false,
