@@ -135,7 +135,7 @@ var miscCmd = &cobra.Command{
 		}
 		source := internal.NewSQSSource(ctx, client, sqsConfig)
 		convert := internal.NewMap(Convert, consumerConfig.MaxReceiveWorker)
-		dedupe := flow.NewFilter(Dedupe(), consumerConfig.MaxReceiveWorker)
+		dedupe := internal.NewFilter(Dedupe(), consumerConfig.MaxReceiveWorker)
 		doFlow := internal.NewMap(Do(), consumerConfig.MaxProcessWorker)
 		batchFlow := flow.NewBatch[Message](consumerConfig.BatchSize, time.Second*10)
 		deleteFlow := internal.NewMap(DeleteMessages(ctx, client, consumerConfig.QueueURL), consumerConfig.MaxReceiveWorker)
@@ -154,6 +154,7 @@ var miscCmd = &cobra.Command{
 					consumerConfig.MaxReceiveWorker += 1
 					consumerConfig.MaxProcessWorker += 1
 					convert.SetParallelism(consumerConfig.MaxReceiveWorker)
+					dedupe.SetParallelism(consumerConfig.MaxReceiveWorker)
 					doFlow.SetParallelism(consumerConfig.MaxProcessWorker)
 					deleteFlow.SetParallelism(consumerConfig.MaxReceiveWorker)
 				}
