@@ -31,25 +31,19 @@ func TestFilter(t *testing.T) {
 
 		for i := 0; i < 3; i++ {
 			in <- i
-			if filter.workers.Load() > 1 {
-				t.Fatalf("workers should less than 1 but got %d", filter.workers.Load())
-			}
+			assert.LessOrEqual(t, filter.workers.Load(), int32(1), "workers should less than or equal to 1")
 		}
 		filter.SetParallelism(3)
 		for i := 3; i < 6; i++ {
 			in <- i
-			if filter.workers.Load() > 3 {
-				t.Fatalf("workers should less than 3 but got %d", filter.workers.Load())
-			}
+			assert.LessOrEqual(t, filter.workers.Load(), int32(3), "workers should less than or equal to 3")
 		}
 		filter.SetParallelism(1)
 		// 非同期的に workers が減るのを待つので、待ち時間を入れる
 		time.Sleep(60 * time.Millisecond)
 		for i := 6; i < 9; i++ {
 			in <- i
-			if filter.workers.Load() > 1 {
-				t.Fatalf("workers should less than 1 but got %d", filter.workers.Load())
-			}
+			assert.LessOrEqual(t, filter.workers.Load(), int32(1), "workers should less than or equal to 1")
 		}
 		close(in)
 

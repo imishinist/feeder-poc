@@ -39,25 +39,19 @@ func TestMap(t *testing.T) {
 
 		for i := 0; i < 3; i++ {
 			in <- i
-			if mf.workers.Load() > 1 {
-				t.Fatalf("workers should less than 1 but got %d", mf.workers.Load())
-			}
+			assert.LessOrEqual(t, mf.workers.Load(), int32(1), "workers should less than or equal to 1")
 		}
 		mf.SetParallelism(3)
 		for i := 3; i < 6; i++ {
 			in <- i
-			if mf.workers.Load() > 3 {
-				t.Fatalf("workers should less than 3 but got %d", mf.workers.Load())
-			}
+			assert.LessOrEqual(t, mf.workers.Load(), int32(3), "workers should less than or equal to 3")
 		}
 		mf.SetParallelism(1)
 		// 非同期的に workers が減るのを待つので、待ち時間を入れる
 		time.Sleep(60 * time.Millisecond)
 		for i := 6; i < 9; i++ {
 			in <- i
-			if mf.workers.Load() > 1 {
-				t.Fatalf("workers should less than 1 but got %d", mf.workers.Load())
-			}
+			assert.LessOrEqual(t, mf.workers.Load(), int32(1), "workers should less than or equal to 1")
 		}
 		close(in)
 

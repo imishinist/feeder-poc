@@ -3,6 +3,8 @@ package internal
 import (
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestMessage_Encode(t *testing.T) {
@@ -15,11 +17,12 @@ func TestMessage_Encode(t *testing.T) {
 		{
 			name: "normal",
 			message: Message{
-				MemberID:  "member_id",
-				Force:     false,
-				EnqueueAt: time.Date(2021, time.January, 1, 0, 0, 0, 0, time.UTC),
+				Collection: "collection",
+				MemberID:   "member_id",
+				Force:      false,
+				EnqueueAt:  time.Date(2021, time.January, 1, 0, 0, 0, 0, time.UTC),
 			},
-			want:    "{\"member_id\":\"member_id\",\"force\":false,\"enqueue_at\":\"2021-01-01T00:00:00Z\"}",
+			want:    "{\"collection\":\"collection\",\"member_id\":\"member_id\",\"force\":false,\"enqueue_at\":\"2021-01-01T00:00:00Z\"}",
 			wantErr: false,
 		},
 	}
@@ -30,9 +33,7 @@ func TestMessage_Encode(t *testing.T) {
 				t.Errorf("Encode() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if got != tt.want {
-				t.Errorf("Encode() got = %v, want %v", got, tt.want)
-			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
