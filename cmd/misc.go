@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
+	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
@@ -123,17 +126,33 @@ var miscCmd = &cobra.Command{
 		if err != nil {
 			panic(err)
 		}
-		source := internal.NewSQSSource(ctx, client, &internal.SQSSourceConfig{
+
+		sqsConfig := &internal.SQSSourceConfig{
 			QueueURL:            consumerConfig.QueueURL,
 			MaxNumberOfMessages: consumerConfig.BatchSize,
 			WaitTimeSeconds:     consumerConfig.WaitTimeSeconds,
 			Parallelism:         consumerConfig.MaxReceiveWorker,
-		})
+		}
+		source := internal.NewSQSSource(ctx, client, sqsConfig)
 		convert := flow.NewMap(Convert, consumerConfig.MaxReceiveWorker)
 		dedupe := flow.NewFilter(Dedupe(), consumerConfig.MaxReceiveWorker)
 		doFlow := flow.NewMap(Do(), consumerConfig.MaxProcessWorker)
 		batchFlow := flow.NewBatch[Message](consumerConfig.BatchSize, time.Second*10)
 		deleteFlow := flow.NewMap(DeleteMessages(ctx, client, consumerConfig.QueueURL), consumerConfig.MaxReceiveWorker)
+
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, syscall.SIGHUP)
+		go func() {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-c:
+					sqsConfig.Parallelism += 1
+					source.ReloadConfig(sqsConfig)
+				}
+			}
+		}()
 
 		source.
 			Via(convert).
