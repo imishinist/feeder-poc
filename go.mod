@@ -8,6 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.36.0
 	github.com/reugn/go-streams v0.10.0
 	github.com/spf13/cobra v1.8.1
+	github.com/stretchr/testify v1.9.0
 	golang.org/x/sync v0.8.0
 	golang.org/x/time v0.7.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -25,6 +26,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.28.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.32.0 // indirect
 	github.com/aws/smithy-go v1.22.0 // indirect
+	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 )

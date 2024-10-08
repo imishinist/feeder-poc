@@ -85,10 +85,12 @@ func (m *Map[T, R]) doStream() {
 		wg.Add(1)
 		m.workers.Add(1)
 		go func(element T) {
-			defer sem.Release()
-			defer wg.Done()
-			defer m.workers.Add(-1)
-
+			defer func() {
+				m.workers.Add(-1)
+				wg.Done()
+				sem.Release()
+			}()
+			
 			m.out <- m.mapFunction(element)
 		}(elem.(T))
 	}

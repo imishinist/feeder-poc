@@ -10,23 +10,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func readChanAsSlice[T any](ch <-chan T) []T {
-	var result []T
-	for v := range ch {
-		result = append(result, v)
-	}
-	return result
-}
-
-func TestMap(t *testing.T) {
+func TestFilter(t *testing.T) {
 	t.Run("normal", func(t *testing.T) {
 		in := make(chan any)
 		out := make(chan any, 10)
 
 		source := ext.NewChanSource(in)
-		mf := NewMap(func(in int) any {
+		filter := NewFilter(func(in int) bool {
 			time.Sleep(30 * time.Millisecond)
-			return in * in
+			return in%2 == 0
 		}, 1)
 		sink := ext.NewChanSink(out)
 
@@ -34,29 +26,29 @@ func TestMap(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			source.Via(mf).To(sink)
+			source.Via(filter).To(sink)
 		}()
 
 		for i := 0; i < 3; i++ {
 			in <- i
-			if mf.workers.Load() > 1 {
-				t.Fatalf("workers should less than 1 but got %d", mf.workers.Load())
+			if filter.workers.Load() > 1 {
+				t.Fatalf("workers should less than 1 but got %d", filter.workers.Load())
 			}
 		}
-		mf.SetParallelism(3)
+		filter.SetParallelism(3)
 		for i := 3; i < 6; i++ {
 			in <- i
-			if mf.workers.Load() > 3 {
-				t.Fatalf("workers should less than 3 but got %d", mf.workers.Load())
+			if filter.workers.Load() > 3 {
+				t.Fatalf("workers should less than 3 but got %d", filter.workers.Load())
 			}
 		}
-		mf.SetParallelism(1)
+		filter.SetParallelism(1)
 		// 非同期的に workers が減るのを待つので、待ち時間を入れる
 		time.Sleep(60 * time.Millisecond)
 		for i := 6; i < 9; i++ {
 			in <- i
-			if mf.workers.Load() > 1 {
-				t.Fatalf("workers should less than 1 but got %d", mf.workers.Load())
+			if filter.workers.Load() > 1 {
+				t.Fatalf("workers should less than 1 but got %d", filter.workers.Load())
 			}
 		}
 		close(in)
@@ -68,7 +60,7 @@ func TestMap(t *testing.T) {
 			return data[i].(int) < data[j].(int)
 		})
 		assert.Equal(t, data, []any{
-			0, 1, 4, 9, 16, 25, 36, 49, 64,
+			0, 2, 4, 6, 8,
 		})
 	})
 }
