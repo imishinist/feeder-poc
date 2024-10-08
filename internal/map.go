@@ -2,6 +2,7 @@ package internal
 
 import (
 	"fmt"
+	"sync"
 	"sync/atomic"
 
 	"github.com/reugn/go-streams"
@@ -63,29 +64,36 @@ func (m *Map[T, R]) transmit(inlet streams.Inlet) {
 
 func (m *Map[T, R]) doStream() {
 	sem := NewDynamicSemaphore(m.parallelism)
+	defer close(m.out)
+	defer close(m.reloaded)
 
-	for elem := range m.in {
-		select {
-		case <-m.reloaded:
-			sem.Set(m.parallelism)
-		default:
+	go func() {
+		for {
+			select {
+			case _, ok := <-m.reloaded:
+				if !ok {
+					return
+				}
+				sem.Set(m.parallelism)
+			}
 		}
+	}()
+
+	wg := new(sync.WaitGroup)
+	for elem := range m.in {
 		sem.Acquire()
+		wg.Add(1)
 		m.workers.Add(1)
 		go func(element T) {
 			defer sem.Release()
+			defer wg.Done()
 			defer m.workers.Add(-1)
 
-			result := m.mapFunction(element)
-			select {
-			case <-m.reloaded:
-				sem.Set(m.parallelism)
-				m.out <- result
-			case m.out <- result:
-			}
+			m.out <- m.mapFunction(element)
 		}(elem.(T))
 	}
-	close(m.out)
+
+	wg.Wait()
 }
 
 func (m *Map[T, R]) SetParallelism(parallelism int) {

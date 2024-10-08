@@ -1,64 +1,56 @@
 package internal
 
 import (
+	"sync"
 	"testing"
+	"time"
+
+	ext "github.com/reugn/go-streams/extension"
 )
 
 func TestMap(t *testing.T) {
-	/*
-		cases := []struct {
-			name       string
-			mapFlowGen func(chan struct{}) *Map[int, int]
-		}{
-			{
-				name: "normal",
-				mapFlowGen: func(ctrl chan struct{}) *Map[int, int] {
-					return NewMap(func(i int) int {
-						<-ctrl
-						return i * i
-					}, 1)
-				},
-			},
+	t.Run("normal", func(t *testing.T) {
+		in := make(chan any)
+		out := make(chan any, 10)
+
+		source := ext.NewChanSource(in)
+		mf := NewMap(func(in int) any {
+			time.Sleep(30 * time.Millisecond)
+			return in * in
+		}, 1)
+		sink := ext.NewChanSink(out)
+
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			source.Via(mf).To(sink)
+		}()
+
+		for i := 0; i < 3; i++ {
+			in <- i
+			if mf.workers.Load() > 1 {
+				t.Fatalf("workers should less than 1 but got %d", mf.workers.Load())
+			}
 		}
-
-		for _, tt := range cases {
-			t.Run(tt.name, func(t *testing.T) {
-				in := make(chan any)
-				out := make(chan any)
-				ctrl := make(chan struct{})
-				done := make(chan struct{})
-
-				source := ext.NewChanSource(in)
-				mf := tt.mapFlowGen(ctrl)
-				sink := ext.NewChanSink(out)
-
-				go func() {
-					source.Via(mf).To(sink)
-				}()
-
-				// ingest
-				in <- 1
-				go func() {
-					in <- 1
-					in <- 1
-					done <- struct{}{}
-					close(in)
-				}()
-				if !isBlocked(done) {
-					t.Fatalf("expected blocked channel")
-				}
-				if mf.workers.Load() != 1 {
-					t.Fatalf("expected 1 worker")
-				}
-
-				mf.SetParallelism(2)
-				if isBlocked(done) {
-					t.Fatalf("expected unblocked channel")
-				}
-				if mf.workers.Load() != 2 {
-					t.Fatalf("expected 2 workers")
-				}
-			})
+		mf.SetParallelism(3)
+		for i := 0; i < 3; i++ {
+			in <- i
+			if mf.workers.Load() > 3 {
+				t.Fatalf("workers should less than 3 but got %d", mf.workers.Load())
+			}
 		}
-	*/
+		mf.SetParallelism(1)
+		// 非同期的に workers が減るのを待つので、待ち時間を入れる
+		time.Sleep(60 * time.Millisecond)
+		for i := 0; i < 3; i++ {
+			in <- i
+			if mf.workers.Load() > 1 {
+				t.Fatalf("workers should less than 1 but got %d", mf.workers.Load())
+			}
+		}
+		close(in)
+
+		wg.Wait()
+	})
 }
