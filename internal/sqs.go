@@ -73,13 +73,15 @@ func (ss *SQSSource) receive(ctx context.Context) {
 			}
 
 			for _, message := range result.Messages {
+				m := QueueMessage[string]{
+					ReceiptHandle: *message.ReceiptHandle,
+					Message:       message.Body,
+				}
 				select {
 				case <-ss.reloaded:
 					sem.Set(ss.config.Parallelism)
-				case ss.out <- QueueMessage[string]{
-					ReceiptHandle: *message.ReceiptHandle,
-					Message:       message.Body,
-				}:
+					ss.out <- m
+				case ss.out <- m:
 				}
 			}
 		}()
