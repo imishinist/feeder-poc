@@ -1,0 +1,6 @@
+collection: COLLECTION
+
+# SQS config
+queue_url: QUEUE_URL
+
+batch_size: abc

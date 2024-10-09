@@ -1,0 +1,5 @@
+collection: COLLECTION
+
+# SQS config
+queue_url: QUEUE_URL
+per_message_interval: foo

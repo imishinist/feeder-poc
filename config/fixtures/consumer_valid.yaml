@@ -1,0 +1,9 @@
+collection: COLLECTION
+
+# SQS config
+queue_url: QUEUE_URL
+batch_size: 5
+wait_time_seconds: 10
+
+max_workers: 10
+per_message_interval: 100ms
