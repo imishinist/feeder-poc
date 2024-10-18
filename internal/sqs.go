@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/reugn/go-streams"
@@ -44,7 +45,11 @@ func NewSQSSource(ctx context.Context, client *sqs.Client, config *SQSSourceConf
 }
 
 func (ss *SQSSource) receive(ctx context.Context) {
-	defer close(ss.out)
+	var wg sync.WaitGroup
+	defer func() {
+		wg.Wait()
+		close(ss.out)
+	}()
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -60,8 +65,11 @@ func (ss *SQSSource) receive(ctx context.Context) {
 		}
 
 		sem.Acquire()
+		wg.Add(1)
 		go func() {
 			defer sem.Release()
+			defer wg.Done()
+
 			result, err := ss.client.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
 				QueueUrl:            &ss.config.QueueURL,
 				MaxNumberOfMessages: int32(ss.config.MaxNumberOfMessages),

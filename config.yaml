@@ -1,2 +1,12 @@
 home_dir: /tmp/foo
 concurrency: 200
+
+collection: COLLECTION
+
+# SQS config
+queue_url: http://localhost:9324/000000000000/queue1
+batch_size: 5
+wait_time_seconds: 10
+
+max_workers: 10
+per_message_interval: 100ms
