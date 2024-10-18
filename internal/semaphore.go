@@ -43,6 +43,9 @@ func (ds *DynamicSemaphore) Release() {
 
 // Add adds or removes slots from the semaphore.
 func (ds *DynamicSemaphore) Add(n int) {
+	ds.mu.Lock()
+	defer ds.mu.Unlock()
+
 	if n < 0 {
 		ds.decrease(-n)
 		return
@@ -52,6 +55,9 @@ func (ds *DynamicSemaphore) Add(n int) {
 
 // Set sets the maximum size of the semaphore.
 func (ds *DynamicSemaphore) Set(max int) {
+	ds.mu.Lock()
+	defer ds.mu.Unlock()
+
 	if max < ds.max {
 		ds.decrease(ds.max - max)
 		return
@@ -61,9 +67,6 @@ func (ds *DynamicSemaphore) Set(max int) {
 
 // increase increases the maximum size of the semaphore.
 func (ds *DynamicSemaphore) increase(n int) {
-	ds.mu.Lock()
-	defer ds.mu.Unlock()
-
 	ds.max += n
 	ds.current += n
 	ds.cond.Broadcast()
@@ -72,9 +75,6 @@ func (ds *DynamicSemaphore) increase(n int) {
 // decrease decreases the maximum size of the semaphore.
 // It waits until enough slots are available to safely reduce the max size.
 func (ds *DynamicSemaphore) decrease(n int) {
-	ds.mu.Lock()
-	defer ds.mu.Unlock()
-
 	for ds.current < n {
 		ds.cond.Wait()
 	}
