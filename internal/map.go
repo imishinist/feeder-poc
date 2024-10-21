@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"expvar"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -17,6 +18,9 @@ type Map[T, R any] struct {
 
 	workers  atomic.Int32
 	reloaded chan struct{}
+
+	Metrics    *expvar.Map
+	goroutines *expvar.Int
 }
 
 var _ streams.Flow = (*Map[any, any])(nil)
@@ -25,6 +29,9 @@ func NewMap[T, R any](mapFunction flow.MapFunction[T, R], parallelism int) *Map[
 	if parallelism < 1 {
 		panic(fmt.Sprintf("nonpositive Map parallelism: %d", parallelism))
 	}
+	metrics := new(expvar.Map)
+	goroutines := new(expvar.Int)
+	metrics.Set("Goroutines", goroutines)
 	mapFlow := &Map[T, R]{
 		mapFunction: mapFunction,
 		in:          make(chan any),
@@ -32,6 +39,8 @@ func NewMap[T, R any](mapFunction flow.MapFunction[T, R], parallelism int) *Map[
 		parallelism: parallelism,
 		workers:     atomic.Int32{},
 		reloaded:    make(chan struct{}),
+		Metrics:     metrics,
+		goroutines:  goroutines,
 	}
 	go mapFlow.doStream()
 
@@ -84,13 +93,15 @@ func (m *Map[T, R]) doStream() {
 		sem.Acquire()
 		wg.Add(1)
 		m.workers.Add(1)
+		m.goroutines.Add(1)
 		go func(element T) {
 			defer func() {
+				m.goroutines.Add(-1)
 				m.workers.Add(-1)
 				wg.Done()
 				sem.Release()
 			}()
-			
+
 			m.out <- m.mapFunction(element)
 		}(elem.(T))
 	}

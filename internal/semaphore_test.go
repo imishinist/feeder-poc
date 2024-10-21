@@ -32,7 +32,8 @@ func TestDynamicSemaphore(t *testing.T) {
 			if isBlocked(done) {
 				t.Errorf("Acquire() should not be blocked when there is capacity")
 			}
-			assert.Equal(t, 2, sem.current, "current should be 2")
+			assert.Equal(t, 3, sem.Capacity(), "capacity should be 3")
+			assert.Equal(t, 1, sem.count, "count should be 1")
 		})
 
 		t.Run("Set 3 to 2 (decrease)", func(t *testing.T) {
@@ -45,7 +46,8 @@ func TestDynamicSemaphore(t *testing.T) {
 			if isBlocked(done) {
 				t.Errorf("Set() should not be blocked when there is capacity")
 			}
-			assert.Equal(t, 2, sem.current, "current should be 2")
+			assert.Equal(t, 2, sem.Capacity(), "capacity should be 2")
+			assert.Equal(t, 0, sem.count, "count should be 1")
 		})
 
 		t.Run("Set 3 to 4 (increase)", func(t *testing.T) {
@@ -58,33 +60,8 @@ func TestDynamicSemaphore(t *testing.T) {
 			if isBlocked(done) {
 				t.Errorf("Set() should not be blocked otherwise there is capacity")
 			}
-			assert.Equal(t, 4, sem.current, "current should be 4")
-		})
-
-		t.Run("Add -1", func(t *testing.T) {
-			sem := NewDynamicSemaphore(3)
-			done := make(chan struct{})
-			go func() {
-				sem.Add(-1)
-				done <- struct{}{}
-			}()
-			if isBlocked(done) {
-				t.Errorf("Add() should not be blocked when there is capacity")
-			}
-			assert.Equal(t, 2, sem.current, "current should be 2")
-		})
-
-		t.Run("Add 1", func(t *testing.T) {
-			sem := NewDynamicSemaphore(3)
-			done := make(chan struct{})
-			go func() {
-				sem.Add(1)
-				done <- struct{}{}
-			}()
-			if isBlocked(done) {
-				t.Errorf("Add() should not be blocked otherwise there is capacity")
-			}
-			assert.Equal(t, 4, sem.current, "current should be 4")
+			assert.Equal(t, 4, sem.Capacity(), "capacity should be 4")
+			assert.Equal(t, 0, sem.count, "count should be 1")
 		})
 	})
 
@@ -103,7 +80,8 @@ func TestDynamicSemaphore(t *testing.T) {
 			if !isBlocked(done) {
 				t.Errorf("Acquire() should be blocked when there is no capacity")
 			}
-			assert.Equal(t, 0, sem.current, "current should be 0")
+			assert.Equal(t, 3, sem.Capacity(), "capacity should be 3")
+			assert.Equal(t, 3, sem.count, "could should be 3")
 
 			go func() {
 				sem.Release()
@@ -112,7 +90,7 @@ func TestDynamicSemaphore(t *testing.T) {
 			if isBlocked(done) {
 				t.Errorf("Release() should not be blocked otherwise there is capacity")
 			}
-			assert.Equal(t, 1, sem.current, "current should be 1")
+			assert.Equal(t, 2, sem.count, "could should be 2")
 		})
 
 		t.Run("Set 3 to 2 (decrease)", func(t *testing.T) {
@@ -126,16 +104,15 @@ func TestDynamicSemaphore(t *testing.T) {
 				sem.Set(2)
 				done <- struct{}{}
 			}()
-			if !isBlocked(done) {
-				t.Errorf("Set() (decrease) should be blocked when there is no capacity")
+			if isBlocked(done) {
+				t.Fatalf("Set() (decrease) should not be blocked when there is no capacity")
 			}
-			assert.Equal(t, 0, sem.current, "current should be 0")
+			assert.Equal(t, 2, sem.Capacity(), "capacity should be 2")
+			assert.Equal(t, 3, sem.count, "could should be 3")
 
 			sem.Release()
-			if isBlocked(done) {
-				t.Errorf("Set() (decrease) go through after Release() has been called")
-			}
-			assert.Equal(t, 0, sem.current, "current should be 0")
+			assert.Equal(t, 2, sem.Capacity(), "capacity should be 2")
+			assert.Equal(t, 2, sem.count, "could should be 2")
 		})
 
 		t.Run("Set 3 to 4 (increase)", func(t *testing.T) {
@@ -152,7 +129,8 @@ func TestDynamicSemaphore(t *testing.T) {
 			if isBlocked(done) {
 				t.Errorf("Set() (increase) should not be blocked otherwise there is capacity")
 			}
-			assert.Equal(t, 1, sem.current, "current should be 1")
+			assert.Equal(t, 4, sem.Capacity(), "capacity should be 4")
+			assert.Equal(t, 3, sem.count, "could should be 3")
 		})
 	})
 }

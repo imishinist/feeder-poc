@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"expvar"
 	"fmt"
 	"time"
 
@@ -14,6 +15,9 @@ type Batch[T any] struct {
 	out          chan any
 
 	reloaded chan struct{}
+
+	Metrics    *expvar.Map
+	goroutines *expvar.Int
 }
 
 var _ streams.Flow = (*Batch[any])(nil)
@@ -22,12 +26,19 @@ func NewBatch[T any](maxBatchSize int, timeInterval time.Duration) *Batch[T] {
 	if maxBatchSize < 1 {
 		panic(fmt.Sprintf("nonpositive maxBatchSize: %d", maxBatchSize))
 	}
+
+	metrics := new(expvar.Map)
+	goroutines := new(expvar.Int)
+	metrics.Set("Goroutines", goroutines)
+
 	batchFlow := &Batch[T]{
 		maxBatchSize: maxBatchSize,
 		timeInterval: timeInterval,
 		in:           make(chan any),
 		out:          make(chan any),
 		reloaded:     make(chan struct{}),
+		Metrics:      metrics,
+		goroutines:   goroutines,
 	}
 	go batchFlow.batchStream()
 

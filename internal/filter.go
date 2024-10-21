@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"expvar"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -17,6 +18,9 @@ type Filter[T any] struct {
 
 	workers  atomic.Int32
 	reloaded chan struct{}
+
+	Metrics    *expvar.Map
+	goroutines *expvar.Int
 }
 
 var _ streams.Flow = (*Filter[any])(nil)
@@ -25,6 +29,9 @@ func NewFilter[T any](filterPredicate flow.FilterPredicate[T], parallelism int) 
 	if parallelism < 1 {
 		panic(fmt.Sprintf("nonpositive Filter parallelism: %d", parallelism))
 	}
+	metrics := new(expvar.Map)
+	goroutines := new(expvar.Int)
+	metrics.Set("Goroutines", goroutines)
 	filter := &Filter[T]{
 		filterPredicate: filterPredicate,
 		in:              make(chan any),
@@ -32,6 +39,8 @@ func NewFilter[T any](filterPredicate flow.FilterPredicate[T], parallelism int) 
 		parallelism:     parallelism,
 		workers:         atomic.Int32{},
 		reloaded:        make(chan struct{}),
+		Metrics:         metrics,
+		goroutines:      goroutines,
 	}
 	go filter.doStream()
 
@@ -68,7 +77,9 @@ func (f *Filter[T]) doStream() {
 	defer close(f.out)
 	defer close(f.reloaded)
 
+	f.goroutines.Add(1)
 	go func() {
+		defer f.goroutines.Add(-1)
 		for {
 			select {
 			case _, ok := <-f.reloaded:
@@ -85,8 +96,10 @@ func (f *Filter[T]) doStream() {
 		sem.Acquire()
 		wg.Add(1)
 		f.workers.Add(1)
+		f.goroutines.Add(1)
 		go func(element T) {
 			defer func() {
+				f.goroutines.Add(-1)
 				f.workers.Add(-1)
 				wg.Done()
 				sem.Release()

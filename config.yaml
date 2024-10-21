@@ -5,8 +5,9 @@ collection: COLLECTION
 
 # SQS config
 queue_url: http://localhost:9324/000000000000/queue1
-batch_size: 5
+batch_size: 10
 wait_time_seconds: 10
 
-max_workers: 10
-per_message_interval: 100ms
+delete_workers: 2
+max_workers: 3
+per_message_interval: 10ms

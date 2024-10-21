@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"expvar"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
@@ -29,16 +30,25 @@ type SQSSource struct {
 	reloaded chan struct{}
 
 	out chan any
+
+	Metrics    *expvar.Map
+	goroutines *expvar.Int
 }
 
 var _ streams.Source = (*SQSSource)(nil)
 
 func NewSQSSource(ctx context.Context, client *sqs.Client, config *SQSSourceConfig) *SQSSource {
+	goroutines := new(expvar.Int)
+	metrics := new(expvar.Map)
+	metrics.Set("Goroutines", goroutines)
+
 	sqsSource := &SQSSource{
-		client:   client,
-		config:   config,
-		reloaded: make(chan struct{}),
-		out:      make(chan any),
+		client:     client,
+		config:     config,
+		reloaded:   make(chan struct{}),
+		out:        make(chan any),
+		Metrics:    metrics,
+		goroutines: goroutines,
 	}
 	go sqsSource.receive(ctx)
 	return sqsSource
@@ -66,9 +76,11 @@ func (ss *SQSSource) receive(ctx context.Context) {
 
 		sem.Acquire()
 		wg.Add(1)
+		ss.goroutines.Add(1)
 		go func() {
 			defer sem.Release()
 			defer wg.Done()
+			defer ss.goroutines.Add(-1)
 
 			result, err := ss.client.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
 				QueueUrl:            &ss.config.QueueURL,
@@ -107,7 +119,10 @@ func (ss *SQSSource) Out() <-chan any {
 
 func (ss *SQSSource) ReloadConfig(config *SQSSourceConfig) {
 	ss.config = config
+	ss.goroutines.Add(1)
 	go func() {
+		defer ss.goroutines.Add(-1)
+
 		ss.reloaded <- struct{}{}
 	}()
 }

@@ -2,11 +2,14 @@ package cmd
 
 import (
 	"context"
+	"expvar"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
+	"runtime"
 	"strconv"
 	"syscall"
 	"time"
@@ -20,6 +23,25 @@ import (
 	"github.com/imishinist/feeder-poc/internal"
 )
 
+var (
+	consumerMetrics = expvar.NewMap("consumer")
+	Goroutines      = new(expvar.Int)
+)
+
+func RunCollector(ctx context.Context) {
+	ticker := time.NewTicker(5 * time.Second)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				Goroutines.Set(int64(runtime.NumGoroutine()))
+			}
+		}
+	}()
+}
+
 type ConsumerWorker struct {
 	config *config.ConsumerWorker
 
@@ -32,6 +54,8 @@ type ConsumerWorker struct {
 	deleteFlow  *internal.Map[[]Message, []Message]
 
 	batchInterval time.Duration
+
+	Metrics *expvar.Map
 }
 
 func NewConsumerWorker(ctx context.Context, configFile string) (*ConsumerWorker, error) {
@@ -54,10 +78,18 @@ func NewConsumerWorker(ctx context.Context, configFile string) (*ConsumerWorker,
 		Parallelism:         worker.config.MaxWorkers,
 	}
 	worker.source = internal.NewSQSSource(ctx, worker.client, sqsConfig)
-	worker.convertFlow = internal.NewMap(worker.Convert, worker.config.MaxWorkers)
+	worker.convertFlow = internal.NewMap(worker.Convert, 1)
 	worker.doFlow = internal.NewMap(worker.Do, worker.config.MaxWorkers)
 	worker.batchFlow = internal.NewBatch[Message](worker.config.BatchSize, worker.batchInterval)
 	worker.deleteFlow = internal.NewMap(worker.DeleteMessage, worker.config.MaxWorkers)
+
+	metrics := new(expvar.Map)
+	metrics.Set("source", worker.source.Metrics)
+	metrics.Set("convert", worker.convertFlow.Metrics)
+	metrics.Set("do", worker.doFlow.Metrics)
+	metrics.Set("batch", worker.batchFlow.Metrics)
+	metrics.Set("delete", worker.deleteFlow.Metrics)
+	worker.Metrics = metrics
 
 	return worker, nil
 }
@@ -146,7 +178,8 @@ func (w *ConsumerWorker) ApplyConfig() {
 		WaitTimeSeconds:     w.config.WaitTimeSeconds,
 		Parallelism:         w.config.MaxWorkers,
 	})
-	w.convertFlow.SetParallelism(w.config.MaxWorkers)
+	// w.convertFlow.SetParallelism(w.config.MaxWorkers)
+	w.convertFlow.SetParallelism(1)
 	w.doFlow.SetParallelism(w.config.MaxWorkers)
 	w.batchFlow.SetConfig(w.config.BatchSize, w.batchInterval)
 	w.deleteFlow.SetParallelism(w.config.MaxWorkers)
@@ -182,6 +215,12 @@ var consumerCmd = &cobra.Command{
 			fmt.Println(err)
 			return
 		}
+		consumerMetrics.Set("Goroutines", Goroutines)
+		workerMetrics := expvar.NewMap("global")
+		workerMetrics.Set("worker", worker.Metrics)
+
+		RunCollector(ctx)
+		go http.ListenAndServe(":9999", nil)
 
 		signals := make(chan os.Signal, 1)
 		signal.Notify(signals, os.Interrupt, syscall.SIGHUP, syscall.SIGTERM)
