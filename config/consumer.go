@@ -22,6 +22,10 @@ type ConsumerWorker struct {
 
 	MaxWorkers         uint          `yaml:"max_workers" default:"20"`
 	PerMessageInterval time.Duration `yaml:"per_message_interval" default:"10ms"`
+
+	ScriptPath string `yaml:"script_path"`
+	StdoutPath string `yaml:"stdout_path"`
+	StderrPath string `yaml:"stderr_path"`
 }
 
 func Parse(in io.Reader) (*ConsumerWorker, error) {
@@ -36,6 +40,15 @@ func Parse(in io.Reader) (*ConsumerWorker, error) {
 	}
 	if conf.QueueURL == "" {
 		return nil, errors.Join(ErrInvalidConfig, errors.New("queue_url is required"))
+	}
+	if conf.ScriptPath == "" {
+		return nil, errors.Join(ErrInvalidConfig, errors.New("script_path is required"))
+	}
+	if conf.StdoutPath == "" {
+		return nil, errors.Join(ErrInvalidConfig, errors.New("stdout_path is required"))
+	}
+	if conf.StderrPath == "" {
+		return nil, errors.Join(ErrInvalidConfig, errors.New("stderr_path is required"))
 	}
 	return &conf, nil
 }

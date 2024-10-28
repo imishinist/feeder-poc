@@ -7,3 +7,7 @@ wait_time_seconds: 10
 
 max_workers: 10
 per_message_interval: 100ms
+
+script_path: SCRIPT_PATH
+stdout_path: STDOUT_PATH
+stderr_path: STDERR_PATH

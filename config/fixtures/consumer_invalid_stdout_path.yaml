@@ -1,5 +1,4 @@
 collection: COLLECTION
 queue_url: QUEUE_URL
 script_path: SCRIPT_PATH
-stdout_path: STDOUT_PATH
-stderr_path: STDERR_PATH
+stdout_path:
