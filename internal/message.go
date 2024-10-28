@@ -6,12 +6,17 @@ import (
 	"time"
 )
 
-type Message struct {
-	Collection string `json:"collection"`
-	MemberID   string `json:"member_id"`
-	Force      bool   `json:"force"`
+type MessageMetadata struct {
+	Source    string     `json:"source"`
+	EnqueueAt time.Time  `json:"enqueue_at"`
+	UpdatedAt *time.Time `json:"updated_at,omitempty"`
+}
 
-	EnqueueAt time.Time `json:"enqueue_at"`
+type Message struct {
+	MemberID    string `json:"member_id"`
+	ProcessType string `json:"process_type"`
+
+	Metadata MessageMetadata `json:"metadata"`
 }
 
 func (m *Message) Encode() (string, error) {

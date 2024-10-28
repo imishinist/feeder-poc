@@ -7,6 +7,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func Ptr[T any](v T) *T {
+	return &v
+}
+
 func TestMessage_Encode(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -15,14 +19,31 @@ func TestMessage_Encode(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "normal",
+			name: "updated_at is nil",
 			message: Message{
-				Collection: "collection",
-				MemberID:   "member_id",
-				Force:      false,
-				EnqueueAt:  time.Date(2021, time.January, 1, 0, 0, 0, 0, time.UTC),
+				MemberID:    "member_id",
+				ProcessType: "U",
+				Metadata: MessageMetadata{
+					Source:    "scavenger",
+					UpdatedAt: nil,
+					EnqueueAt: time.Date(2021, time.January, 1, 0, 0, 0, 0, time.UTC),
+				},
 			},
-			want:    "{\"collection\":\"collection\",\"member_id\":\"member_id\",\"force\":false,\"enqueue_at\":\"2021-01-01T00:00:00Z\"}",
+			want:    "{\"member_id\":\"member_id\",\"process_type\":\"U\",\"metadata\":{\"source\":\"scavenger\",\"enqueue_at\":\"2021-01-01T00:00:00Z\"}}",
+			wantErr: false,
+		},
+		{
+			name: "updated_at has set",
+			message: Message{
+				MemberID:    "member_id",
+				ProcessType: "U",
+				Metadata: MessageMetadata{
+					Source:    "scavenger",
+					UpdatedAt: Ptr(time.Date(2021, time.January, 1, 0, 0, 0, 0, time.UTC)),
+					EnqueueAt: time.Date(2021, time.January, 1, 0, 0, 0, 0, time.UTC),
+				},
+			},
+			want:    "{\"member_id\":\"member_id\",\"process_type\":\"U\",\"metadata\":{\"source\":\"scavenger\",\"enqueue_at\":\"2021-01-01T00:00:00Z\",\"updated_at\":\"2021-01-01T00:00:00Z\"}}",
 			wantErr: false,
 		},
 	}
