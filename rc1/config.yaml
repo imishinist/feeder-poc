@@ -10,5 +10,6 @@ max_workers: 3
 per_message_interval: 10ms
 
 script_path: ../bin/work.sh
+# stdout_path: /dev/tty
 stdout_path: /tmp/work.out
 stderr_path: /tmp/work.err
