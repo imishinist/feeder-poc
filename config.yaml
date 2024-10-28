@@ -8,6 +8,6 @@ queue_url: http://localhost:9324/000000000000/queue1
 batch_size: 10
 wait_time_seconds: 10
 
-delete_workers: 2
-max_workers: 3
+delete_workers: 5
+max_workers: 30
 per_message_interval: 10ms

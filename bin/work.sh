@@ -13,4 +13,5 @@ trap on_exit EXIT
 
 
 echo "work.sh: $collection $member_id $enqueue_ts $force"
+echo "work.sh: $collection $member_id $enqueue_ts $force" >> /tmp/work.log
 sleep 2

@@ -2,60 +2,42 @@ package cmd
 
 import (
 	"context"
-	"expvar"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
-	"runtime"
 	"strconv"
 	"syscall"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
-	ext "github.com/reugn/go-streams/extension"
+	awss "github.com/imishinist/go-streams/aws"
+	ext "github.com/imishinist/go-streams/extension"
+	"github.com/imishinist/go-streams/flow"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 
 	"github.com/imishinist/feeder-poc/config"
 	"github.com/imishinist/feeder-poc/internal"
 )
 
-var (
-	consumerMetrics = expvar.NewMap("consumer")
-	Goroutines      = new(expvar.Int)
-)
-
-func RunCollector(ctx context.Context) {
-	ticker := time.NewTicker(5 * time.Second)
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				Goroutines.Set(int64(runtime.NumGoroutine()))
-			}
-		}
-	}()
-}
+type Message awss.QueueMessage[internal.Message]
 
 type ConsumerWorker struct {
 	config *config.ConsumerWorker
 
 	client *sqs.Client
 
-	source      *internal.SQSSource
-	convertFlow *internal.Map[internal.QueueMessage[string], Message]
-	doFlow      *internal.Map[Message, Message]
-	batchFlow   *internal.Batch[Message]
-	deleteFlow  *internal.Map[[]Message, []Message]
+	source      *awss.SQSSource[string]
+	convertFlow *flow.Map[awss.QueueMessage[string], Message]
+	doFlow      *flow.Map[Message, Message]
+	batchFlow   *flow.Batch[Message]
+	deleteFlow  *flow.Map[[]Message, []Message]
 
 	batchInterval time.Duration
-
-	Metrics *expvar.Map
 }
 
 func NewConsumerWorker(ctx context.Context, configFile string) (*ConsumerWorker, error) {
@@ -71,57 +53,51 @@ func NewConsumerWorker(ctx context.Context, configFile string) (*ConsumerWorker,
 	}
 	worker.client = client
 
-	sqsConfig := &internal.SQSSourceConfig{
+	sqsConfig := &awss.SQSSourceConfig[string]{
 		QueueURL:            worker.config.QueueURL,
 		MaxNumberOfMessages: worker.config.BatchSize,
 		WaitTimeSeconds:     worker.config.WaitTimeSeconds,
 		Parallelism:         worker.config.MaxWorkers,
+		BodyHandler:         worker.bodyHandler,
 	}
-	worker.source = internal.NewSQSSource(ctx, worker.client, sqsConfig)
-	worker.convertFlow = internal.NewMap(worker.Convert, 1)
-	worker.doFlow = internal.NewMap(worker.Do, worker.config.MaxWorkers)
-	worker.batchFlow = internal.NewBatch[Message](worker.config.BatchSize, worker.batchInterval)
-	worker.deleteFlow = internal.NewMap(worker.DeleteMessage, worker.config.MaxWorkers)
-
-	metrics := new(expvar.Map)
-	metrics.Set("source", worker.source.Metrics)
-	metrics.Set("convert", worker.convertFlow.Metrics)
-	metrics.Set("do", worker.doFlow.Metrics)
-	metrics.Set("batch", worker.batchFlow.Metrics)
-	metrics.Set("delete", worker.deleteFlow.Metrics)
-	worker.Metrics = metrics
+	worker.source = awss.NewSQSSource(ctx, worker.client, sqsConfig)
+	worker.convertFlow = flow.NewMap("convert", worker.Convert, 1)
+	worker.doFlow = flow.NewMap("do", worker.Do, worker.config.MaxWorkers)
+	worker.batchFlow = flow.NewBatch[Message]("batch", uint(worker.config.BatchSize), worker.batchInterval)
+	worker.deleteFlow = flow.NewMap("delete", worker.DeleteMessage, worker.config.MaxWorkers)
 
 	return worker, nil
 }
 
-func (w *ConsumerWorker) Convert(msg internal.QueueMessage[string]) Message {
-	message, err := internal.ParseMessage(*msg.Message)
+func (w *ConsumerWorker) Convert(msg awss.QueueMessage[string]) Message {
+	message, err := internal.ParseMessage(*msg.Body)
 	if err != nil {
 		return Message{
 			ReceiptHandle: msg.ReceiptHandle,
-			Message:       nil,
+			Body:          message,
 		}
 	}
 	return Message{
 		ReceiptHandle: msg.ReceiptHandle,
-		Message:       message,
+		Body:          message,
 	}
 }
 
 func (w *ConsumerWorker) Do(msg Message) (ret Message) {
 	ret = msg
 
-	if msg.Message == nil {
+	body := msg.Body
+	if msg.Body == nil {
 		return
 	}
 
-	enqueueAt := fmt.Sprintf("%d", msg.Message.EnqueueAt.UnixMilli())
+	enqueueAt := fmt.Sprintf("%d", body.EnqueueAt.UnixMilli())
 	force := "0"
-	if msg.Message.Force {
+	if body.Force {
 		force = "1"
 	}
 
-	cmd := exec.Command("bin/work.sh", msg.Message.Collection, msg.Message.MemberID, force, enqueueAt, ">>logs/work.out", "2>>logs/work.err")
+	cmd := exec.Command("/bin/sh", "-c", fmt.Sprintf("bin/work.sh %s %s %s %s >>logs/work.out 2>>logs/work.err", body.Collection, body.MemberID, force, enqueueAt))
 	if err := cmd.Run(); err != nil {
 		log.Println("command exec error", err)
 		return
@@ -134,14 +110,14 @@ func (w *ConsumerWorker) DeleteMessage(msgs []Message) []Message {
 	entries := make([]types.DeleteMessageBatchRequestEntry, 0, len(msgs))
 	for i, msg := range msgs {
 		// ReceiptHandle が設定されている場合だけ削除する
-		if msg.ReceiptHandle == "" {
+		if msg.ReceiptHandle == nil {
 			continue
 		}
 
 		id := strconv.Itoa(i)
 		entries = append(entries, types.DeleteMessageBatchRequestEntry{
 			Id:            &id,
-			ReceiptHandle: &msg.ReceiptHandle,
+			ReceiptHandle: msg.ReceiptHandle,
 		})
 	}
 	if len(entries) == 0 {
@@ -171,17 +147,22 @@ func (w *ConsumerWorker) Start() error {
 	return nil
 }
 
+func (w *ConsumerWorker) bodyHandler(s *string) *string {
+	return s
+}
+
 func (w *ConsumerWorker) ApplyConfig() {
-	w.source.ReloadConfig(&internal.SQSSourceConfig{
+	w.source.ReloadConfig(&awss.SQSSourceConfig[string]{
 		QueueURL:            w.config.QueueURL,
 		MaxNumberOfMessages: w.config.BatchSize,
 		WaitTimeSeconds:     w.config.WaitTimeSeconds,
 		Parallelism:         w.config.MaxWorkers,
+		BodyHandler:         w.bodyHandler,
 	})
 	// w.convertFlow.SetParallelism(w.config.MaxWorkers)
 	w.convertFlow.SetParallelism(1)
 	w.doFlow.SetParallelism(w.config.MaxWorkers)
-	w.batchFlow.SetConfig(w.config.BatchSize, w.batchInterval)
+	w.batchFlow.SetConfig(uint(w.config.BatchSize), w.batchInterval)
 	w.deleteFlow.SetParallelism(w.config.MaxWorkers)
 }
 
@@ -215,12 +196,6 @@ var consumerCmd = &cobra.Command{
 			fmt.Println(err)
 			return
 		}
-		consumerMetrics.Set("Goroutines", Goroutines)
-		workerMetrics := expvar.NewMap("global")
-		workerMetrics.Set("worker", worker.Metrics)
-
-		RunCollector(ctx)
-		go http.ListenAndServe(":9999", nil)
 
 		signals := make(chan os.Signal, 1)
 		signal.Notify(signals, os.Interrupt, syscall.SIGHUP, syscall.SIGTERM)
@@ -243,6 +218,11 @@ var consumerCmd = &cobra.Command{
 					}
 				}
 			}
+		}()
+
+		go func() {
+			http.Handle("/metrics", promhttp.Handler())
+			http.ListenAndServe(":2112", nil)
 		}()
 
 		if err := worker.Start(); err != nil {

@@ -20,7 +20,7 @@ type ConsumerWorker struct {
 	BatchSize       int    `yaml:"batch_size" default:"10"`
 	WaitTimeSeconds int    `yaml:"wait_time_seconds" default:"20"`
 
-	MaxWorkers         int           `yaml:"max_workers" default:"20"`
+	MaxWorkers         uint          `yaml:"max_workers" default:"20"`
 	PerMessageInterval time.Duration `yaml:"per_message_interval" default:"10ms"`
 }
 
