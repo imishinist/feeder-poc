@@ -7,8 +7,8 @@ wait_time_seconds: 10
 
 delete_workers: 5
 max_workers: 3
-per_message_interval: 100ms
+per_message_interval: 10ms
 
-script_path: bin/work.sh
+script_path: ../bin/work.sh
 stdout_path: /tmp/work.out
 stderr_path: /tmp/work.err

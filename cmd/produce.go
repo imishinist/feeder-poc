@@ -81,10 +81,12 @@ func SourceMessages(ctx context.Context, n int) chan internal.Message {
 			case <-ctx.Done():
 				return
 			case ch <- internal.Message{
-				Collection: "BRent",
-				MemberID:   fmt.Sprintf("%d", i),
-				Force:      false,
-				EnqueueAt:  time.Now(),
+				MemberID:    fmt.Sprintf("%d", i),
+				ProcessType: "U",
+				Metadata: internal.MessageMetadata{
+					Source:    "scavenger",
+					EnqueueAt: time.Now(),
+				},
 			}:
 			}
 		}

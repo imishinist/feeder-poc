@@ -86,18 +86,11 @@ func (w *ConsumerWorker) Convert(msg awss.QueueMessage[string]) Message {
 func (w *ConsumerWorker) Do(msg Message) (ret Message) {
 	ret = msg
 
-	body := msg.Body
 	if msg.Body == nil {
 		return
 	}
 
-	enqueueAt := fmt.Sprintf("%d", body.EnqueueAt.UnixMilli())
-	force := "0"
-	if body.Force {
-		force = "1"
-	}
-
-	cmd := exec.Command("/bin/sh", "-c", fmt.Sprintf("bin/work.sh %s %s %s %s >>logs/work.out 2>>logs/work.err", body.Collection, body.MemberID, force, enqueueAt))
+	cmd := exec.Command("/bin/sh", "-c", "bin/work.sh 1 1 1 >>logs/work.out 2>>logs/work.err")
 	if err := cmd.Run(); err != nil {
 		log.Println("command exec error", err)
 		return

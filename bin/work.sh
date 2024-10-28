@@ -3,7 +3,6 @@
 collection=$1
 member_id=$2
 enqueue_ts=$3
-force=$4
 
 on_exit() {
   echo "on exit"
@@ -12,6 +11,5 @@ on_exit() {
 trap on_exit EXIT
 
 
-echo "work.sh: $collection $member_id $enqueue_ts $force"
-echo "work.sh: $collection $member_id $enqueue_ts $force" >> /tmp/work.log
-sleep 2
+echo "work.sh: $collection $member_id $enqueue_ts"
+sleep 1
