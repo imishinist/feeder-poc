@@ -86,6 +86,7 @@ func SourceMessages(ctx context.Context, n int) chan internal.Message {
 				Metadata: internal.MessageMetadata{
 					Source:    "scavenger",
 					EnqueueAt: time.Now(),
+					UpdatedAt: internal.MaybeTime{},
 				},
 			}:
 			}

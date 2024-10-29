@@ -44,7 +44,8 @@ func NewSQSClient(ctx context.Context) (*sqs.Client, error) {
 type Message = awss.QueueMessage[internal.Message]
 
 type ConsumerWorker struct {
-	logger *logger.Logger
+	logger logger.Logger
+
 	config *config.ConsumerWorker
 
 	client *sqs.Client
@@ -70,11 +71,7 @@ func NewConsumerWorker(ctx context.Context, configFile string) (*ConsumerWorker,
 	}
 	worker.client = client
 
-	worker.logger, err = logger.NewLogger(worker.config.StdoutPath, worker.config.StderrPath)
-	if err != nil {
-		return nil, err
-	}
-
+	worker.logger = logger.NewStdLogger()
 	sqsConfig := &awss.SQSSourceConfig[internal.Message]{
 		QueueURL:            worker.config.QueueURL,
 		MaxNumberOfMessages: worker.config.BatchSize,
@@ -102,11 +99,18 @@ func (w *ConsumerWorker) Convert(body *string) (*internal.Message, error) {
 	*/
 	message, err := internal.ParseMessage(*body)
 	if err != nil {
-		w.logger.Errorf("parse message error: %v\n", err)
+		w.logger.Errorf("invalid message %v: %s", err, *body)
 		// パースに失敗したエラーは無視して処理を続ける
 		return nil, nil
 	}
 	return message, nil
+}
+
+func (w *ConsumerWorker) duration(start *time.Time, finish *time.Time) string {
+	if start == nil || finish == nil {
+		return "-"
+	}
+	return fmt.Sprintf("%d", finish.Sub(*start).Milliseconds())
 }
 
 func (w *ConsumerWorker) Feed(msg Message) (ret Message) {
@@ -125,11 +129,23 @@ func (w *ConsumerWorker) Feed(msg Message) (ret Message) {
 	enqueueAt := fmt.Sprintf("%d", body.Metadata.EnqueueAt.UnixNano())
 	stdoutPath := w.config.StdoutPath
 	stderrPath := w.config.StderrPath
+
+	start := time.Now()
 	cmd := exec.Command("/bin/sh", "-c", fmt.Sprintf("%s %s %s %s >>%s 2>>%s", scriptPath, collection, memberID, enqueueAt, stdoutPath, stderrPath))
 	if err := cmd.Run(); err != nil {
-		w.logger.Errorf("command exec error: %v\n", err)
+		w.logger.Printf("failed consumer [%s] [%s]", w.config.Collection, memberID)
 		return
 	}
+	finish := time.Now()
+
+	waitUntilEnqueue := w.duration(body.Metadata.UpdatedAt.Time, &body.Metadata.EnqueueAt)
+	totalFeedTime := w.duration(body.Metadata.UpdatedAt.Time, &finish)
+	waitUntilStart := w.duration(&body.Metadata.EnqueueAt, &start)
+	processTime := w.duration(&start, &finish)
+	waitUntilFinish := w.duration(&body.Metadata.EnqueueAt, &finish)
+	waitAfterReceive := w.duration(&msg.ReceiveTime, &finish)
+	w.logger.Printf("finished consumer [%s] [%s] [%s] [%s] [%s] [%s] [%s] [%s]", w.config.Collection, memberID, waitUntilEnqueue, waitUntilStart, processTime, waitUntilFinish, waitAfterReceive, totalFeedTime)
+
 	return
 }
 
@@ -154,11 +170,11 @@ func (w *ConsumerWorker) DeleteMessage(msgs []Message) []Message {
 		Entries:  entries,
 	})
 	if err != nil {
-		w.logger.Errorf("delete message error: %v\n", err)
+		w.logger.Errorf("delete message error: %v", err)
 		return msgs
 	}
 
-	w.logger.Printf("delete %d success, %d failed\n", len(res.Successful), len(res.Failed))
+	w.logger.Printf("delete %d success, %d failed", len(res.Successful), len(res.Failed))
 	return msgs
 }
 
@@ -183,10 +199,6 @@ func (w *ConsumerWorker) ApplyConfig() {
 	w.feedFlow.SetParallelism(w.config.MaxFeedWorkers)
 	w.batchFlow.SetConfig(uint(w.config.BatchSize), w.batchInterval)
 	w.deleteFlow.SetParallelism(w.config.MaxDeleteWorkers)
-
-	if err := w.logger.ReOpen(w.config.StdoutPath, w.config.StderrPath); err != nil {
-		log.Println(err)
-	}
 }
 
 func (w *ConsumerWorker) LoadConfig(configFile string) error {
@@ -202,10 +214,6 @@ func (w *ConsumerWorker) LoadConfig(configFile string) error {
 	}
 	w.config = cf
 	return nil
-}
-
-func (w *ConsumerWorker) Close() error {
-	return w.logger.Close()
 }
 
 func main() {
@@ -227,9 +235,6 @@ func main() {
 		for {
 			select {
 			case <-ctx.Done():
-				if err := worker.Close(); err != nil {
-					log.Println(err)
-				}
 				return
 			case sig := <-signals:
 				switch {

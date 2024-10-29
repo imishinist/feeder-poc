@@ -3,12 +3,11 @@ module github.com/imishinist/feeder-poc
 go 1.23.1
 
 require (
-	github.com/aws/aws-sdk-go-v2 v1.32.2
+	github.com/aws/aws-sdk-go-v2 v1.32.3
 	github.com/aws/aws-sdk-go-v2/config v1.27.41
-	github.com/aws/aws-sdk-go-v2/service/sqs v1.36.2
+	github.com/aws/aws-sdk-go-v2/service/sqs v1.36.3
 	github.com/creasty/defaults v1.8.0
-	github.com/imishinist/go-streams v0.0.0-20241028071849-d2c3d0dc5fe7
-	github.com/imishinist/go-streams/aws v0.0.0-20241028071849-d2c3d0dc5fe7
+	github.com/imishinist/go-streams v0.1.2
 	github.com/prometheus/client_golang v1.20.5
 	github.com/reugn/go-streams v0.10.0
 	github.com/spf13/cobra v1.8.1
@@ -21,8 +20,8 @@ require (
 require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.39 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.15 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.21 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.21 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.22 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.22 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.0 // indirect

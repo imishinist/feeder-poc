@@ -7,9 +7,9 @@ import (
 )
 
 type MessageMetadata struct {
-	Source    string     `json:"source"`
-	EnqueueAt time.Time  `json:"enqueue_at"`
-	UpdatedAt *time.Time `json:"updated_at,omitempty"`
+	Source    string    `json:"source"`
+	EnqueueAt time.Time `json:"enqueue_at"`
+	UpdatedAt MaybeTime `json:"updated_at,omitempty"`
 }
 
 type Message struct {

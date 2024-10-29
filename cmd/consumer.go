@@ -140,8 +140,8 @@ func (w *ConsumerWorker) Start() error {
 	return nil
 }
 
-func (w *ConsumerWorker) bodyHandler(s *string) *string {
-	return s
+func (w *ConsumerWorker) bodyHandler(s *string) (*string, error) {
+	return s, nil
 }
 
 func (w *ConsumerWorker) ApplyConfig() {

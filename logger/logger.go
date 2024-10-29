@@ -2,17 +2,21 @@ package logger
 
 import (
 	"fmt"
+	"io"
+	"strings"
 	"sync"
 )
 
-type Logger struct {
+type FileLogger struct {
 	stdout *file
 	stderr *file
 
 	mu *sync.RWMutex
 }
 
-func NewLogger(stdoutPath, stderrPath string) (*Logger, error) {
+var _ Logger = (*FileLogger)(nil)
+
+func NewFileLogger(stdoutPath, stderrPath string) (*FileLogger, error) {
 	stdout, err := newFile(stdoutPath)
 	if err != nil {
 		return nil, err
@@ -22,14 +26,14 @@ func NewLogger(stdoutPath, stderrPath string) (*Logger, error) {
 		return nil, err
 	}
 
-	return &Logger{
+	return &FileLogger{
 		stdout: stdout,
 		stderr: stderr,
 		mu:     new(sync.RWMutex),
 	}, nil
 }
 
-func (l *Logger) ReOpen(stdoutPath, stderrPath string) error {
+func (l *FileLogger) ReOpen(stdoutPath, stderrPath string) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -42,7 +46,7 @@ func (l *Logger) ReOpen(stdoutPath, stderrPath string) error {
 	return nil
 }
 
-func (l *Logger) Reload() error {
+func (l *FileLogger) Reload() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -56,7 +60,7 @@ func (l *Logger) Reload() error {
 	return nil
 }
 
-func (l *Logger) Close() (err error) {
+func (l *FileLogger) Close() (err error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -70,20 +74,32 @@ func (l *Logger) Close() (err error) {
 	return nil
 }
 
-func (l *Logger) Printf(format string, v ...interface{}) {
+func (l *FileLogger) Printf(format string, v ...interface{}) (n int, err error) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 
-	if l.stdout != nil {
-		fmt.Fprintf(l.stdout, format, v...)
+	if l.stdout == nil {
+		return 0, nil
 	}
+	return l.printf(l.stdout, format, v...)
 }
 
-func (l *Logger) Errorf(format string, v ...interface{}) {
+func (l *FileLogger) Errorf(format string, v ...interface{}) (n int, err error) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 
-	if l.stderr != nil {
-		fmt.Fprintf(l.stderr, format, v...)
+	if l.stderr == nil {
+		return 0, nil
 	}
+	return l.printf(l.stderr, format, v...)
+}
+
+func (l *FileLogger) printf(w io.Writer, format string, v ...interface{}) (n int, err error) {
+	if !strings.HasSuffix(format, "\n") {
+		format += "\n"
+	}
+
+	now := Now().Format("2006-01-02 15:04:05")
+	format = "[" + now + "] " + format
+	return fmt.Fprintf(w, format, v...)
 }
