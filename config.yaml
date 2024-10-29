@@ -6,7 +6,9 @@ batch_size: 10
 wait_time_seconds: 10
 
 delete_workers: 5
-max_workers: 3
+max_source_workers: 4
+max_feed_workers: 10
+max_delete_workers: 2
 per_message_interval: 100ms
 
 script_path: bin/work.sh

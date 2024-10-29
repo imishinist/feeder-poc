@@ -57,14 +57,14 @@ func NewConsumerWorker(ctx context.Context, configFile string) (*ConsumerWorker,
 		QueueURL:            worker.config.QueueURL,
 		MaxNumberOfMessages: worker.config.BatchSize,
 		WaitTimeSeconds:     worker.config.WaitTimeSeconds,
-		Parallelism:         worker.config.MaxWorkers,
+		Parallelism:         worker.config.MaxSourceWorkers,
 		BodyHandler:         worker.bodyHandler,
 	}
 	worker.source = awss.NewSQSSource(ctx, worker.client, sqsConfig)
 	worker.convertFlow = flow.NewMap("convert", worker.Convert, 1)
-	worker.doFlow = flow.NewMap("do", worker.Do, worker.config.MaxWorkers)
+	worker.doFlow = flow.NewMap("do", worker.Do, worker.config.MaxFeedWorkers)
 	worker.batchFlow = flow.NewBatch[Message]("batch", uint(worker.config.BatchSize), worker.batchInterval)
-	worker.deleteFlow = flow.NewMap("delete", worker.DeleteMessage, worker.config.MaxWorkers)
+	worker.deleteFlow = flow.NewMap("delete", worker.DeleteMessage, worker.config.MaxDeleteWorkers)
 
 	return worker, nil
 }
@@ -149,14 +149,14 @@ func (w *ConsumerWorker) ApplyConfig() {
 		QueueURL:            w.config.QueueURL,
 		MaxNumberOfMessages: w.config.BatchSize,
 		WaitTimeSeconds:     w.config.WaitTimeSeconds,
-		Parallelism:         w.config.MaxWorkers,
+		Parallelism:         w.config.MaxSourceWorkers,
 		BodyHandler:         w.bodyHandler,
 	})
 	// w.convertFlow.SetParallelism(w.config.MaxWorkers)
 	w.convertFlow.SetParallelism(1)
-	w.doFlow.SetParallelism(w.config.MaxWorkers)
+	w.doFlow.SetParallelism(w.config.MaxFeedWorkers)
 	w.batchFlow.SetConfig(uint(w.config.BatchSize), w.batchInterval)
-	w.deleteFlow.SetParallelism(w.config.MaxWorkers)
+	w.deleteFlow.SetParallelism(w.config.MaxDeleteWorkers)
 }
 
 func (w *ConsumerWorker) LoadConfig(configFile string) error {

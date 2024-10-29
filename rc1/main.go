@@ -79,13 +79,13 @@ func NewConsumerWorker(ctx context.Context, configFile string) (*ConsumerWorker,
 		QueueURL:            worker.config.QueueURL,
 		MaxNumberOfMessages: worker.config.BatchSize,
 		WaitTimeSeconds:     worker.config.WaitTimeSeconds,
-		Parallelism:         worker.config.MaxWorkers,
+		Parallelism:         worker.config.MaxSourceWorkers,
 		BodyHandler:         worker.Convert,
 	}
 	worker.source = awss.NewSQSSource(ctx, worker.client, sqsConfig)
-	worker.feedFlow = flow.NewMap("feed", worker.Feed, worker.config.MaxWorkers)
+	worker.feedFlow = flow.NewMap("feed", worker.Feed, worker.config.MaxFeedWorkers)
 	worker.batchFlow = flow.NewBatch[Message]("batch", uint(worker.config.BatchSize), worker.batchInterval)
-	worker.deleteFlow = flow.NewMap("delete", worker.DeleteMessage, worker.config.MaxWorkers)
+	worker.deleteFlow = flow.NewMap("delete", worker.DeleteMessage, worker.config.MaxDeleteWorkers)
 
 	return worker, nil
 }
@@ -177,12 +177,12 @@ func (w *ConsumerWorker) ApplyConfig() {
 		QueueURL:            w.config.QueueURL,
 		MaxNumberOfMessages: w.config.BatchSize,
 		WaitTimeSeconds:     w.config.WaitTimeSeconds,
-		Parallelism:         w.config.MaxWorkers,
+		Parallelism:         w.config.MaxSourceWorkers,
 		BodyHandler:         w.Convert,
 	})
-	w.feedFlow.SetParallelism(w.config.MaxWorkers)
+	w.feedFlow.SetParallelism(w.config.MaxFeedWorkers)
 	w.batchFlow.SetConfig(uint(w.config.BatchSize), w.batchInterval)
-	w.deleteFlow.SetParallelism(w.config.MaxWorkers)
+	w.deleteFlow.SetParallelism(w.config.MaxDeleteWorkers)
 
 	if err := w.logger.ReOpen(w.config.StdoutPath, w.config.StderrPath); err != nil {
 		log.Println(err)
