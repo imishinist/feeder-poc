@@ -102,7 +102,7 @@ func (w *ConsumerWorker) Convert(body *string) (*internal.Message, error) {
 	*/
 	message, err := internal.ParseMessage(*body)
 	if err != nil {
-		w.logger.Errorf("parse message error: %v", err)
+		w.logger.Errorf("parse message error: %v\n", err)
 		// パースに失敗したエラーは無視して処理を続ける
 		return nil, nil
 	}
@@ -127,7 +127,7 @@ func (w *ConsumerWorker) Feed(msg Message) (ret Message) {
 	stderrPath := w.config.StderrPath
 	cmd := exec.Command("/bin/sh", "-c", fmt.Sprintf("%s %s %s %s >>%s 2>>%s", scriptPath, collection, memberID, enqueueAt, stdoutPath, stderrPath))
 	if err := cmd.Run(); err != nil {
-		w.logger.Errorf("command exec error: %v", err)
+		w.logger.Errorf("command exec error: %v\n", err)
 		return
 	}
 	return
@@ -154,11 +154,11 @@ func (w *ConsumerWorker) DeleteMessage(msgs []Message) []Message {
 		Entries:  entries,
 	})
 	if err != nil {
-		w.logger.Errorf("delete message error: %v", err)
+		w.logger.Errorf("delete message error: %v\n", err)
 		return msgs
 	}
 
-	w.logger.Printf("delete %d success, %d failed", len(res.Successful), len(res.Failed))
+	w.logger.Printf("delete %d success, %d failed\n", len(res.Successful), len(res.Failed))
 	return msgs
 }
 
