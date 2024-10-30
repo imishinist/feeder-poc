@@ -1,4 +1,5 @@
 collection: COLLECTION
+stop_file_path: STOP_FILE_PATH
 
 # SQS config
 queue_url: QUEUE_URL

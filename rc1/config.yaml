@@ -1,4 +1,5 @@
 collection: COLLECTION
+stop_file_path: /tmp/work.stop
 
 # SQS config
 queue_url: http://localhost:9324/000000000000/queue1

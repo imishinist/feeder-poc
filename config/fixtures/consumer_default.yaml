@@ -1,4 +1,5 @@
 collection: COLLECTION
+stop_file_path: STOP_FILE_PATH
 queue_url: QUEUE_URL
 script_path: SCRIPT_PATH
 stdout_path: STDOUT_PATH

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -9,6 +10,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"strconv"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -24,6 +26,8 @@ import (
 	"github.com/imishinist/feeder-poc/internal"
 	"github.com/imishinist/feeder-poc/logger"
 )
+
+var ErrStop = errors.New("STOPファイルが設置されています")
 
 func NewSQSClient(ctx context.Context) (*sqs.Client, error) {
 	cfg, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion("ap-northeast-1"))
@@ -44,6 +48,8 @@ func NewSQSClient(ctx context.Context) (*sqs.Client, error) {
 type Message = awss.QueueMessage[internal.Message]
 
 type ConsumerWorker struct {
+	stopping atomic.Bool
+
 	logger logger.Logger
 
 	config *config.ConsumerWorker
@@ -65,7 +71,10 @@ func NewConsumerWorker(ctx context.Context, configFile string) (*ConsumerWorker,
 	if err := worker.LoadConfig(configFile); err != nil {
 		return nil, err
 	}
+	worker.stopping.Store(false)
 	worker.batchInterval = time.Second * 10
+
+	ctx, cancel := context.WithCancelCause(ctx)
 
 	client, err := NewSQSClient(ctx)
 	if err != nil {
@@ -87,7 +96,33 @@ func NewConsumerWorker(ctx context.Context, configFile string) (*ConsumerWorker,
 	worker.deleteFlow = flow.NewMap("delete", worker.DeleteMessage, worker.config.MaxDeleteWorkers)
 	worker.uuid = internal.NewUUID()
 
+	go worker.handleStop(cancel)
+
 	return worker, nil
+}
+
+func (w *ConsumerWorker) handleStop(cancel context.CancelCauseFunc) {
+	ticker := time.NewTicker(time.Second * 2)
+	for range ticker.C {
+		if w.stopping.Load() {
+			cancel(ErrStop)
+			return
+		}
+	}
+}
+
+func (w *ConsumerWorker) shouldStop() bool {
+	if w.stopping.Load() {
+		return true
+	}
+
+	_, err := os.Stat(w.config.StopFilePath)
+	if err == nil {
+		w.stopping.Store(true)
+		w.logger.Printf("STOPファイルが置かれているため、処理を中断します。")
+		return true
+	}
+	return false
 }
 
 // Convert は、SQSから取得したメッセージをパースする
@@ -118,6 +153,11 @@ func (w *ConsumerWorker) duration(start *time.Time, finish *time.Time) string {
 
 func (w *ConsumerWorker) Feed(msg Message) (ret Message) {
 	ret = msg
+	if w.shouldStop() {
+		// stopファイルが存在する場合はメッセージを削除せずに処理を終了する
+		ret.ReceiptHandle = nil
+		return
+	}
 
 	body := msg.Body
 	if body == nil {
@@ -183,6 +223,10 @@ func (w *ConsumerWorker) DeleteMessage(msgs []Message) []Message {
 }
 
 func (w *ConsumerWorker) Start() error {
+	if w.shouldStop() {
+		return nil
+	}
+
 	w.source.
 		Via(w.feedFlow).
 		Via(w.batchFlow).

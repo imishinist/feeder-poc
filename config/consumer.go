@@ -14,7 +14,8 @@ var (
 )
 
 type ConsumerWorker struct {
-	Collection string `yaml:"collection"`
+	Collection   string `yaml:"collection"`
+	StopFilePath string `yaml:"stop_file_path"`
 
 	QueueURL        string `yaml:"queue_url"`
 	BatchSize       int    `yaml:"batch_size" default:"10"`
@@ -39,6 +40,9 @@ func Parse(in io.Reader) (*ConsumerWorker, error) {
 	}
 	if conf.Collection == "" {
 		return nil, errors.Join(ErrInvalidConfig, errors.New("collection is required"))
+	}
+	if conf.StopFilePath == "" {
+		return nil, errors.Join(ErrInvalidConfig, errors.New("stop_file_path is required"))
 	}
 	if conf.QueueURL == "" {
 		return nil, errors.Join(ErrInvalidConfig, errors.New("queue_url is required"))

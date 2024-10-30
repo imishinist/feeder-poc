@@ -30,6 +30,7 @@ func TestParse(t *testing.T) {
 			fixture: "consumer_valid.yaml",
 			want: &ConsumerWorker{
 				Collection:         "COLLECTION",
+				StopFilePath:       "STOP_FILE_PATH",
 				QueueURL:           "QUEUE_URL",
 				BatchSize:          5,
 				WaitTimeSeconds:    10,
@@ -48,6 +49,7 @@ func TestParse(t *testing.T) {
 			fixture: "consumer_default.yaml",
 			want: &ConsumerWorker{
 				Collection:         "COLLECTION",
+				StopFilePath:       "STOP_FILE_PATH",
 				QueueURL:           "QUEUE_URL",
 				BatchSize:          10,
 				WaitTimeSeconds:    20,
