@@ -104,7 +104,12 @@ func produce(ctx context.Context, producer *Producer, messageCh chan internal.Me
 		default:
 		}
 
-		slog.InfoContext(ctx, "produce", slog.Any("message", message))
+		msg, err := message.Encode()
+		if err != nil {
+			return err
+		}
+
+		slog.InfoContext(ctx, "produce", slog.String("message", msg))
 		buf = append(buf, &message)
 		if len(buf) < 10 {
 			continue

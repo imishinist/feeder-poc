@@ -7,7 +7,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.27.41
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.36.3
 	github.com/creasty/defaults v1.8.0
-	github.com/imishinist/go-streams v0.1.2
+	github.com/google/uuid v1.6.0
+	github.com/imishinist/go-streams v0.1.3
 	github.com/prometheus/client_golang v1.20.5
 	github.com/reugn/go-streams v0.10.0
 	github.com/spf13/cobra v1.8.1

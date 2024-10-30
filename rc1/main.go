@@ -56,6 +56,8 @@ type ConsumerWorker struct {
 	deleteFlow *flow.Map[[]Message, []Message]
 
 	batchInterval time.Duration
+
+	uuid string
 }
 
 func NewConsumerWorker(ctx context.Context, configFile string) (*ConsumerWorker, error) {
@@ -83,6 +85,7 @@ func NewConsumerWorker(ctx context.Context, configFile string) (*ConsumerWorker,
 	worker.feedFlow = flow.NewMap("feed", worker.Feed, worker.config.MaxFeedWorkers)
 	worker.batchFlow = flow.NewBatch[Message]("batch", uint(worker.config.BatchSize), worker.batchInterval)
 	worker.deleteFlow = flow.NewMap("delete", worker.DeleteMessage, worker.config.MaxDeleteWorkers)
+	worker.uuid = internal.NewUUID()
 
 	return worker, nil
 }
@@ -99,7 +102,7 @@ func (w *ConsumerWorker) Convert(body *string) (*internal.Message, error) {
 	*/
 	message, err := internal.ParseMessage(*body)
 	if err != nil {
-		w.logger.Errorf("invalid message %v: %s", err, *body)
+		w.logger.Printf("[%s] invalid message %v: %s", w.uuid, err, *body)
 		// パースに失敗したエラーは無視して処理を続ける
 		return nil, nil
 	}
@@ -131,9 +134,10 @@ func (w *ConsumerWorker) Feed(msg Message) (ret Message) {
 	stderrPath := w.config.StderrPath
 
 	start := time.Now()
+	w.logger.Printf("[%s] starting consumer [%s] [%s] [%s]", w.uuid, w.config.Collection, *msg.MessageID, memberID)
 	cmd := exec.Command("/bin/sh", "-c", fmt.Sprintf("%s %s %s %s >>%s 2>>%s", scriptPath, collection, memberID, enqueueAt, stdoutPath, stderrPath))
 	if err := cmd.Run(); err != nil {
-		w.logger.Printf("failed consumer [%s] [%s]", w.config.Collection, memberID)
+		w.logger.Printf("[%s] failed consumer [%s] [%s] [%s]", w.uuid, w.config.Collection, *msg.MessageID, memberID)
 		return
 	}
 	finish := time.Now()
@@ -144,7 +148,7 @@ func (w *ConsumerWorker) Feed(msg Message) (ret Message) {
 	processTime := w.duration(&start, &finish)
 	waitUntilFinish := w.duration(&body.Metadata.EnqueueAt, &finish)
 	waitAfterReceive := w.duration(&msg.ReceiveTime, &finish)
-	w.logger.Printf("finished consumer [%s] [%s] [%s] [%s] [%s] [%s] [%s] [%s]", w.config.Collection, memberID, waitUntilEnqueue, waitUntilStart, processTime, waitUntilFinish, waitAfterReceive, totalFeedTime)
+	w.logger.Printf("[%s] finished consumer [%s] [%s] [%s] %s %s %s %s %s %s", w.uuid, w.config.Collection, *msg.MessageID, memberID, waitUntilEnqueue, waitUntilStart, processTime, waitUntilFinish, waitAfterReceive, totalFeedTime)
 
 	return
 }
@@ -170,11 +174,11 @@ func (w *ConsumerWorker) DeleteMessage(msgs []Message) []Message {
 		Entries:  entries,
 	})
 	if err != nil {
-		w.logger.Errorf("delete message error: %v", err)
+		w.logger.Errorf("[%s] delete message error: %v", w.uuid, err)
 		return msgs
 	}
 
-	w.logger.Printf("delete %d success, %d failed", len(res.Successful), len(res.Failed))
+	w.logger.Printf("[%s] delete %d success, %d failed", w.uuid, len(res.Successful), len(res.Failed))
 	return msgs
 }
 
